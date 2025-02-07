@@ -3,3 +3,4 @@ Gen AI Agent that creates a customized pet retailer ad image based on user's pet
 
 ## Architecture
 
+![Architecture](https://github.com/sarahovakeemian/ad_tech_image_agent/blob/main/images/arch_diagram.jpeg)
