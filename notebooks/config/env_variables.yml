@@ -1,0 +1,19 @@
+dev_model:
+  catalog: ml_shovakeemian
+  schema: feip
+  model_name: clip
+endpoint_name: shovakeemian_clip
+image_source:
+  catalog: ml_shovakeemian
+  schema: feip
+  volume: cat_images_kaggle
+image_table:
+  catalog: ml_shovakeemian
+  schema: feip
+  table: cat_images
+vs_index:
+  catalog: ml_shovakeemian
+  schema: feip
+  delta_sync_table: ml_shovakeemian.feip.cat_images_embeddings
+  index_name: cat_images_vs
+  vs_endpoint: one-env-shared-endpoint-15

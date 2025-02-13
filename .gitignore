@@ -6,9 +6,6 @@ __pycache__/
 # MLFlow Experiments
 experiments/
 
-# Environments
-env/
-
 # Distribution / packaging
 .Python
 build/
