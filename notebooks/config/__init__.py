@@ -222,5 +222,6 @@ class DeployConfig(BaseConfig):
     dev_model: UCModel
     image_source: UCVolume
     image_table: UCTable
+    user_table: UCTable
     vs_index: VSIndex   
                 

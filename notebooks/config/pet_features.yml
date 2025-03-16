@@ -1,0 +1,32 @@
+pets:
+  cat:
+    breeds:
+      - Domestic Shorthair
+      - American Shorthair
+      - Domestic Longhair
+      - Siamese
+      - Maine Coon
+      - Ragdoll
+      - Russian Blue
+      - Bombay
+      - Bengal
+      - Siberian
+      - Persian
+      - Scottish Fold
+    colors:
+      - Black
+      - White
+      - Gray
+      - Orange
+      - Calico
+      - Tabby
+      - Tuxedo
+    temperaments:
+      - Friendly
+      - Aggressive
+      - Calm
+      - Curious
+      - Playful
+      - Shy
+      - Affectionate
+    max_age: 20

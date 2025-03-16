@@ -11,6 +11,10 @@ image_table:
   catalog: ml_shovakeemian
   schema: feip
   table: cat_images
+user_table:
+  catalog: ml_shovakeemian
+  schema: feip
+  table: user_pet_features
 vs_index:
   catalog: ml_shovakeemian
   schema: feip
