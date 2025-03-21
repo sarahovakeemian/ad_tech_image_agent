@@ -15,6 +15,10 @@ user_table:
   catalog: ml_shovakeemian
   schema: feip
   table: user_pet_features
+user_online_table:
+  catalog: ml_shovakeemian
+  schema: feip
+  table: user_pet_features_online
 vs_index:
   catalog: ml_shovakeemian
   schema: feip
