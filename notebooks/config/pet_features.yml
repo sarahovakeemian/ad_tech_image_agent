@@ -1,26 +1,26 @@
 pets:
   cat:
     breeds:
-      - Domestic Shorthair
-      - American Shorthair
-      - Domestic Longhair
-      - Siamese
-      - Maine Coon
-      - Ragdoll
-      - Russian Blue
-      - Bombay
-      - Bengal
-      - Siberian
-      - Persian
-      - Scottish Fold
-    colors:
-      - Black
-      - White
-      - Gray
-      - Orange
-      - Calico
-      - Tabby
-      - Tuxedo
+      - Black Domestic Shorthair​
+      - Brown Tabby Domestic Shorthair​
+      - Gray Domestic Shorthair​
+      - Orange Domestic Shorthair​
+      - Tuxedo Domestic Shorthair​
+      - Calico Domestic Shorthair​
+      - Tortoiseshell Domestic Shorthair​
+      - Black Domestic Longhair​
+      - Brown Tabby Domestic Longhair​
+      - Gray Domestic Longhair​
+      - Orange Domestic Longhair​
+      - Tuxedo Domestic Longhair​
+      - Calico Domestic Longhair​
+      - Tortoiseshell Domestic Longhair​
+      - Seal Point Siamese​
+      - Blue Point Siamese​
+      - Brown Tabby Maine Coon​
+      - Black Maine Coon​
+      - White Persian​
+      - Black Persian
     temperaments:
       - Friendly
       - Aggressive
