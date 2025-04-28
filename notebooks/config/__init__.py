@@ -220,8 +220,10 @@ class UCModel(BaseConfig):
 class DeployConfig(BaseConfig):
     endpoint_name: str
     dev_model: UCModel
+    brand_source: UCVolume
     image_source: UCVolume
     image_table: UCTable
+    brand_table: UCTable
     user_table: UCTable
     user_online_table: UCTable
     vs_index: VSIndex   

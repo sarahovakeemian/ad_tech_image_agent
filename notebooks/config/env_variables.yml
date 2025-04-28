@@ -25,3 +25,11 @@ vs_index:
   delta_sync_table: ml_shovakeemian.feip.cat_images_embeddings
   index_name: cat_images_vs
   vs_endpoint: one-env-shared-endpoint-15
+brand_source:
+  catalog: ml_shovakeemian
+  schema: feip
+  volume: catfood_brand_creatives
+brand_table:
+  catalog: ml_shovakeemian
+  schema: feip
+  table: catfood_creatives 
