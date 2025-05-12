@@ -224,7 +224,4 @@ class DeployConfig(BaseConfig):
     image_source: UCVolume
     image_table: UCTable
     brand_table: UCTable
-    user_table: UCTable
-    user_online_table: UCTable
-    vs_index: VSIndex   
-                
+    vs_index: VSIndex             

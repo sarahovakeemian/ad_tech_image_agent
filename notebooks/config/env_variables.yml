@@ -6,30 +6,22 @@ endpoint_name: shovakeemian_clip
 image_source:
   catalog: ml_shovakeemian
   schema: feip
-  volume: cat_images_kaggle
+  volume: pet_images_kaggle
 image_table:
   catalog: ml_shovakeemian
   schema: feip
-  table: cat_images
-user_table:
-  catalog: ml_shovakeemian
-  schema: feip
-  table: user_pet_features
-user_online_table:
-  catalog: ml_shovakeemian
-  schema: feip
-  table: user_pet_features_online
+  table: pet_images
 vs_index:
   catalog: ml_shovakeemian
   schema: feip
-  delta_sync_table: ml_shovakeemian.feip.cat_images_embeddings
-  index_name: cat_images_vs
+  delta_sync_table: ml_shovakeemian.feip.pet_images_embeddings
+  index_name: pet_images_vs
   vs_endpoint: one-env-shared-endpoint-15
 brand_source:
   catalog: ml_shovakeemian
   schema: feip
-  volume: catfood_brand_creatives
+  volume: petfood_brand_creatives
 brand_table:
   catalog: ml_shovakeemian
   schema: feip
-  table: catfood_creatives 
+  table: petfood_creatives 
