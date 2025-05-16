@@ -13,12 +13,8 @@ from mlflow.deployments import get_deploy_client
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# For testing
-use_local_image = False
-
-if not use_local_image:
-    # Initialize the Databricks Client
-    client = get_deploy_client("databricks")
+# For getting local images rather than serving endpoint
+local_mode = True
 
 # Ensure environment variable is set correctly
 assert os.getenv('SERVING_ENDPOINT'), "SERVING_ENDPOINT must be set in app.yaml."
@@ -33,45 +29,53 @@ assert os.getenv('SERVING_ENDPOINT'), "SERVING_ENDPOINT must be set in app.yaml.
 
 # user_info = get_user_info()
 
-# Streamlit app
-if "visibility" not in st.session_state:
-    st.session_state.visibility = "visible"
-    st.session_state.disabled = False
+# --- NEW: Add a session state flag for button click SH added---
+if "generate_clicked" not in st.session_state:
+    st.session_state.generate_clicked = False
 
-            
-st.title("🐱 Cat Ad Image Gen App")
+def on_generate_click():
+    st.session_state.generate_clicked = True
+
+st.title("🐶🐱 Pet Ad Image Gen App")
 
 # Segment definitions
 segments = {
-    "Suburban Home Owners": {
-        "vector_query": "black cat prowling in a garden",
-        "persona_summary": "Design-conscious suburban owners with an active outdoor cat."
+    "Young Professionals": {
+        "vector_query": "Grey cat on a rug",
+        "persona_summary": "A driven urban worker who values independence, modern living, and the quiet companionship of their furry friend."
     },
-    "Adventure Seekers": {
-        "vector_query": "ginger cat playing in the snow",
-        "persona_summary": "Outdoor-loving couples who take their cat on seasonal trips."
+    "Outdoor Enthusiasts": {
+        "vector_query": "Golden retriever in the park",
+        "persona_summary": "An active individual who thrives on adventure, fresh air, and sharing it all with their loyal friend by their side."
     },
-    "City Creators": {
-        "vector_query": "tuxedo cat in the city",
-        "persona_summary": "Trendy, urban, social media savvy cat owners."
+    "Young Families": {
+        "vector_query": "Guinea pig in it’s cage",
+        "persona_summary": "Creates a nurturing home where their children are learning care and responsibility through their very first pet."
     },
-    "Homebodies": {
-        "vector_query": "sleeping brown cat on chair",
-        "persona_summary": "Indoorsy types who love to cozy up at home with a blanket and their cat."
+    "Eco-Conscious Millenials": {
+        "vector_query": "Bunny rabbits in the grass",
+        "persona_summary": "Lives sustainably and intentionally, choosing a pet as a low-impact companion that aligns with their eco-friendly values."
     },
-    "Luxury lovers": {
-        "vector_query": "elegant white cat",
-        "persona_summary": "Artsy luxury lovers with a stylish cat to show off."
+    "Passionate Hobbyists": {
+        "vector_query": "Bright green parrots",
+        "persona_summary": "A retired hobbyist who fills their days with passion projects and lively conversations with their talkative pet."
     }
 }
 
-# Helper to map segment to local cat image
-local_cat_images = {
-    "Suburban Home Owners": "test_images/cat_01.png",
-    "Adventure Seekers": "test_images/cat_02.png",
-    "City Creators": "test_images/cat_03.png",
-    "Homebodies": "test_images/cat_04.png",
-    "Luxury lovers": "test_images/cat_05.png",
+# Helpers to map segment to local images
+local_pet_images = {
+    "Young Professionals": "images/cat.jpg",
+    "Outdoor Enthusiasts": "images/dog.jpg",
+    "Young Families": "images/guinea_pig.jpg",
+    "Eco-Conscious Millenials": "images/rabbit.jpg",
+    "Passionate Hobbyists": "images/parrot.jpg",
+}
+local_ad_images = {
+    "Young Professionals": "images/cat_ad.jpg",
+    "Outdoor Enthusiasts": "images/dog_ad.jpg",
+    "Young Families": "images/guinea_pig_ad.jpg",
+    "Eco-Conscious Millenials": "images/rabbit_ad.jpg",
+    "Passionate Hobbyists": "images/parrot_ad.jpg",
 }
 
 segment_options = list(segments.keys()) + ["No Segment (custom prompt)"]
@@ -94,21 +98,32 @@ else:
     st.write(f"**Persona Summary:** {persona_summary}")
     st.markdown(f"**Query:** *{vector_query}*")
 
-if st.button("Generate Image"):
+st.button("Generate Image", on_click=on_generate_click) #SH added---
+
+# Main execution block - now OUTSIDE the button check
+if st.session_state.generate_clicked:
+    # Immediately reset flag to prevent reruns
+    st.session_state.generate_clicked = False
+
     if segment_name == "No Segment (custom prompt)":
         prompt = custom_prompt.strip()
         if not prompt:
             st.error("Custom prompt is required when not using a segment.")
             st.stop()
+        use_endpoint = True  # Force endpoint for custom prompt
     else:
         prompt = vector_query
+        use_endpoint = not local_mode  # Follow local_mode for predefined segments
+
     with st.spinner("Generating image..."):
         try:
-            if use_local_image:
-                time.sleep(2)  # Simulate delay
-                original_image = Image.open(local_cat_images[segment_name])
-                generated_image = Image.open("test_images/image_gen_example.png")
+            if not use_endpoint:
+                time.sleep(5) # Simulate delay
+                original_image = Image.open(local_pet_images[segment_name])
+                generated_image = Image.open(local_ad_images[segment_name])
             else:
+                # Initialize the Databricks Client
+                client = get_deploy_client("databricks")
                 response = client.predict(
                     endpoint=os.getenv("SERVING_ENDPOINT"),
                     inputs={
@@ -134,3 +149,4 @@ if st.button("Generate Image"):
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
+            
