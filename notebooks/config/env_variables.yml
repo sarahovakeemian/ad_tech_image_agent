@@ -1,35 +1,32 @@
-dev_model:
-  catalog: ml_shovakeemian
-  schema: feip
+embedding_model:
+  catalog: media_advertising
+  schema: ad_tech_image_agent
   model_name: clip
-endpoint_name: shovakeemian_clip
+embedding_endpoint_name: clip
 image_source:
-  catalog: ml_shovakeemian
-  schema: feip
-  volume: cat_images_kaggle
+  catalog: media_advertising
+  schema: ad_tech_image_agent
+  volume: pet_images_kaggle
 image_table:
-  catalog: ml_shovakeemian
-  schema: feip
-  table: cat_images
-user_table:
-  catalog: ml_shovakeemian
-  schema: feip
-  table: user_pet_features
-user_online_table:
-  catalog: ml_shovakeemian
-  schema: feip
-  table: user_pet_features_online
+  catalog: media_advertising
+  schema: ad_tech_image_agent
+  table: pet_images
 vs_index:
-  catalog: ml_shovakeemian
-  schema: feip
-  delta_sync_table: ml_shovakeemian.feip.cat_images_embeddings
-  index_name: cat_images_vs
-  vs_endpoint: one-env-shared-endpoint-15
+  catalog: media_advertising
+  schema: ad_tech_image_agent
+  delta_sync_table: media_advertising.feip.pet_images_embeddings
+  index_name: pet_images_vs
+  vs_endpoint: vector-search-demo-endpoint
 brand_source:
-  catalog: ml_shovakeemian
-  schema: feip
-  volume: catfood_brand_creatives
+  catalog: media_advertising
+  schema: ad_tech_image_agent
+  volume: petfood_brand_creatives
 brand_table:
-  catalog: ml_shovakeemian
-  schema: feip
-  table: catfood_creatives 
+  catalog: media_advertising
+  schema: ad_tech_image_agent
+  table: petfood_creatives
+image_gen_model_path:
+  catalog: media_advertising
+  schema: ad_tech_image_agent
+  model_name: pet_ad_image_gen
+agent_endpoint_name: pet_ad_image_gen
