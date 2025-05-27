@@ -33,8 +33,13 @@ assert os.getenv('SERVING_ENDPOINT'), "SERVING_ENDPOINT must be set in app.yaml.
 if "generate_clicked" not in st.session_state:
     st.session_state.generate_clicked = False
 
+if "processing" not in st.session_state:
+    st.session_state.processing = False
+
 def on_generate_click():
-    st.session_state.generate_clicked = True
+    if not st.session_state.processing:
+        st.session_state.generate_clicked = True
+        st.session_state.processing = True
 
 st.title("🐶🐱 Pet Ad Image Gen App")
 
@@ -101,9 +106,11 @@ else:
 st.button("Generate Image", on_click=on_generate_click) #SH added---
 
 # Main execution block - now OUTSIDE the button check
-if st.session_state.generate_clicked:
+if st.session_state.generate_clicked and st.session_state.processing:
     # Immediately reset flag to prevent reruns
     st.session_state.generate_clicked = False
+    now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    st.write("main knowledge block:", now)
 
     if segment_name == "No Segment (custom prompt)":
         prompt = custom_prompt.strip()
@@ -116,21 +123,26 @@ if st.session_state.generate_clicked:
         use_endpoint = not local_mode  # Follow local_mode for predefined segments
 
     with st.spinner("Generating image..."):
+        now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        st.write("spinner:", now)
         try:
             if not use_endpoint:
-                time.sleep(5) # Simulate delay
+                time.sleep(2) # Simulate delay
                 original_image = Image.open(local_pet_images[segment_name])
                 generated_image = Image.open(local_ad_images[segment_name])
             else:
                 # Initialize the Databricks Client
                 client = get_deploy_client("databricks")
+                now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                st.write("making agent call:", now)
                 response = client.predict(
                     endpoint=os.getenv("SERVING_ENDPOINT"),
                     inputs={
                         "dataframe_split": {
                             "columns": ["model_input"],
                             "data": [[prompt]]
-                        }
+                        },
+                        "params": {'openai_toggle': True}
                     }
                 )
 
@@ -145,7 +157,11 @@ if st.session_state.generate_clicked:
                 st.image(generated_image, use_container_width=True, caption="✨ AI-generated ad creative")
 
             with col2:
-                st.image(original_image, use_container_width=True, caption="🐈 Retrieved from vector search")
+                st.image(original_image, use_container_width=True, caption="🐾 Retrieved from vector search")
+
+            now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            st.write("finish:", now)
+            st.session_state.processing = False
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
