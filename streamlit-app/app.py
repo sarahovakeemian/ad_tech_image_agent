@@ -33,6 +33,8 @@ def on_generate_click():
 
 st.title("🐶🐱 Pet Ad Image Gen App")
 
+st.image("images/arch_diagram_V2.png", use_container_width=True, caption="Databricks Architecture")
+
 # Segment definitions
 segments = {
     "Young Professionals": {
@@ -127,8 +129,6 @@ st.button("Generate Image", on_click=on_generate_click) #SH added---
 if st.session_state.generate_clicked and st.session_state.processing:
     # Immediately reset flag to prevent reruns
     st.session_state.generate_clicked = False
-    now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    st.write("main knowledge block:", now)
 
     prompt = vector_query
     use_endpoint = not local_mode  # Follow local_mode for predefined segments
@@ -151,8 +151,6 @@ if st.session_state.generate_clicked and st.session_state.processing:
             with col2:
                 st.image(original_image, use_container_width=True, caption="🐾 Retrieved from vector search")
 
-            now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            st.write("finish:", now)
             st.session_state.processing = False
 
         except Exception as e:
