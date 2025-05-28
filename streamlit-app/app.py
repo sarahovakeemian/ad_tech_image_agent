@@ -115,7 +115,6 @@ segment_options = list(segments.keys())
 segment_name = st.selectbox("Choose an audience segment:", segment_options)
 
 segment = segments[segment_name]
-custom_prompt = None  # ignore user input in this mode
 vector_query = segment["vector_query"]
 persona_summary = segment["persona_summary"]
 
@@ -130,12 +129,7 @@ if st.session_state.generate_clicked and st.session_state.processing:
     # Immediately reset flag to prevent reruns
     st.session_state.generate_clicked = False
 
-    prompt = vector_query
-    use_endpoint = not local_mode  # Follow local_mode for predefined segments
-
     with st.spinner("Generating image..."):
-        now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        st.write("spinner:", now)
         try:
             time.sleep(2) # Simulate delay
             original_image = Image.open(local_pet_images[segment_name])
