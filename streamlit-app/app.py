@@ -17,17 +17,7 @@ logger = logging.getLogger(__name__)
 local_mode = True
 
 # Ensure environment variable is set correctly
-assert os.getenv('SERVING_ENDPOINT'), "SERVING_ENDPOINT must be set in app.yaml."
-
-# def get_user_info():
-#     headers = st.context.headers
-#     return dict(
-#         user_name=headers.get("X-Forwarded-Preferred-Username"),
-#         user_email=headers.get("X-Forwarded-Email"),
-#         user_id=headers.get("X-Forwarded-User"),
-#     )
-
-# user_info = get_user_info()
+# assert os.getenv('SERVING_ENDPOINT'), "SERVING_ENDPOINT must be set in app.yaml."
 
 # --- NEW: Add a session state flag for button click SH added---
 if "generate_clicked" not in st.session_state:
@@ -64,44 +54,72 @@ segments = {
     "Passionate Hobbyists": {
         "vector_query": "Bright green parrots",
         "persona_summary": "A retired hobbyist who fills their days with passion projects and lively conversations with their talkative pet."
+    },
+    "Luxury Lifestyle Seekers": {
+        "vector_query": "White poodle",
+        "persona_summary": "Values sophistication and pampering, treating their pet as a stylish companion and status symbol."
+    },
+    "Security-Focused Guardians": {
+        "vector_query": "Tough rottweiler",
+        "persona_summary": "Seeks a protective companion that embodies strength while maintaining family loyalty."
+    },
+    "Vocal Companion Enthusiasts": {
+        "vector_query": "Quaker Parrot",
+        "persona_summary": "Loves interactive pets that provide lively companionship and engaging dialogue."
+    },
+    "Traditional Loyalty Advocates": {
+        "vector_query": "Old Bulldog",
+        "persona_summary": "Cherishes steadfast companionship and the quiet dignity of a time-tested breed."
+    },
+    "Style-Conscious Pet Parents": {
+        "vector_query": "Siamese kittens",
+        "persona_summary": "Adores elegant felines that complement their modern aesthetic while providing playful energy."
+    },
+    "Mystical Nature Admirers": {
+        "vector_query": "Black forest cat",
+        "persona_summary": "Drawn to mysterious feline companions that evoke woodland magic and quiet independence."
     }
 }
 
 # Helpers to map segment to local images
 local_pet_images = {
-    "Young Professionals": "images/cat.jpg",
-    "Outdoor Enthusiasts": "images/dog.jpg",
+    "Young Professionals": "images/grey_cat.jpg",
+    "Outdoor Enthusiasts": "images/golden_retriever.jpg",
     "Young Families": "images/guinea_pig.jpg",
     "Eco-Conscious Millenials": "images/rabbit.jpg",
     "Passionate Hobbyists": "images/parrot.jpg",
+    "Luxury Lifestyle Seekers":"images/poodle.png",
+    "Security-Focused Guardians":"images/rottweiler.png",
+    "Vocal Companion Enthusiasts":"images/quaker_parrot.png",
+    "Traditional Loyalty Advocates":"images/bulldog.png",
+    "Style-Conscious Pet Parents":"images/siamese_kittens.png",
+    "Mystical Nature Admirers":"images/black_forest_cat.png"
 }
 local_ad_images = {
-    "Young Professionals": "images/cat_ad.jpg",
-    "Outdoor Enthusiasts": "images/dog_ad.jpg",
+    "Young Professionals": "images/grey_cat_ad.jpg",
+    "Outdoor Enthusiasts": "images/golden_retriever_ad.jpg",
     "Young Families": "images/guinea_pig_ad.jpg",
     "Eco-Conscious Millenials": "images/rabbit_ad.jpg",
     "Passionate Hobbyists": "images/parrot_ad.jpg",
+    "Luxury Lifestyle Seekers":"images/poodle_ad.png",
+    "Security-Focused Guardians":"images/rottweiler_ad.png",
+    "Vocal Companion Enthusiasts":"images/quaker_parrot_ad.png",
+    "Traditional Loyalty Advocates":"images/bulldog_ad.png",
+    "Style-Conscious Pet Parents":"images/siamese_kittens_ad.png",
+    "Mystical Nature Admirers":"images/black_forest_cat_ad.png"
 }
 
-segment_options = list(segments.keys()) + ["No Segment (custom prompt)"]
+segment_options = list(segments.keys())
 segment_name = st.selectbox("Choose an audience segment:", segment_options)
 
-if segment_name == "No Segment (custom prompt)":
-    st.markdown("### Custom Prompt")
-    custom_prompt = st.text_input("Enter your custom prompt (required):")
-    if not custom_prompt.strip():
-        st.warning("Please enter a prompt to continue.")
-    vector_query = None
-    persona_summary = None
-else:
-    segment = segments[segment_name]
-    custom_prompt = None  # ignore user input in this mode
-    vector_query = segment["vector_query"]
-    persona_summary = segment["persona_summary"]
+segment = segments[segment_name]
+custom_prompt = None  # ignore user input in this mode
+vector_query = segment["vector_query"]
+persona_summary = segment["persona_summary"]
 
-    st.markdown("### Segment Information")
-    st.write(f"**Persona Summary:** {persona_summary}")
-    st.markdown(f"**Query:** *{vector_query}*")
+st.markdown("### Segment Information")
+st.write(f"**Persona Summary:** {persona_summary}")
+st.markdown(f"**Query:** *{vector_query}*")
 
 st.button("Generate Image", on_click=on_generate_click) #SH added---
 
@@ -112,42 +130,16 @@ if st.session_state.generate_clicked and st.session_state.processing:
     now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
     st.write("main knowledge block:", now)
 
-    if segment_name == "No Segment (custom prompt)":
-        prompt = custom_prompt.strip()
-        if not prompt:
-            st.error("Custom prompt is required when not using a segment.")
-            st.stop()
-        use_endpoint = True  # Force endpoint for custom prompt
-    else:
-        prompt = vector_query
-        use_endpoint = not local_mode  # Follow local_mode for predefined segments
+    prompt = vector_query
+    use_endpoint = not local_mode  # Follow local_mode for predefined segments
 
     with st.spinner("Generating image..."):
         now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         st.write("spinner:", now)
         try:
-            if not use_endpoint:
-                time.sleep(2) # Simulate delay
-                original_image = Image.open(local_pet_images[segment_name])
-                generated_image = Image.open(local_ad_images[segment_name])
-            else:
-                # Initialize the Databricks Client
-                client = get_deploy_client("databricks")
-                now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                st.write("making agent call:", now)
-                response = client.predict(
-                    endpoint=os.getenv("SERVING_ENDPOINT"),
-                    inputs={
-                        "dataframe_split": {
-                            "columns": ["model_input"],
-                            "data": [[prompt]]
-                        },
-                        "params": {'openai_toggle': True}
-                    }
-                )
-
-                original_image = Image.open(BytesIO(base64.b64decode(response['predictions'][1])))
-                generated_image = Image.open(BytesIO(base64.b64decode(response['predictions'][2])))
+            time.sleep(2) # Simulate delay
+            original_image = Image.open(local_pet_images[segment_name])
+            generated_image = Image.open(local_ad_images[segment_name])
 
             st.markdown("### Generated Ad and Source Image")
 
