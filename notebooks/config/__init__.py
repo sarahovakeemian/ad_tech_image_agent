@@ -218,13 +218,16 @@ class UCModel(BaseConfig):
 
 @dataclass
 class DeployConfig(BaseConfig):
-    endpoint_name: str
-    dev_model: UCModel
+    embedding_endpoint_name: str
+    agent_endpoint_name: str
+    embedding_model: UCModel
     brand_source: UCVolume
     image_source: UCVolume
     image_table: UCTable
     brand_table: UCTable
     user_table: UCTable
     user_online_table: UCTable
-    vs_index: VSIndex   
+    vs_index: VSIndex
+    image_gen_model_path: UCModel
+
                 
