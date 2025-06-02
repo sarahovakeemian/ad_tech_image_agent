@@ -33,7 +33,7 @@ def on_generate_click():
 
 st.title("🐶🐱 Pet Ad Image Gen App")
 
-st.image("images/arch_diagram_V2.png", use_container_width=True, caption="Databricks Architecture")
+st.image("images/arch_diagram_V3.png", use_container_width=True, caption="Databricks Architecture")
 
 # Segment definitions
 segments = {
