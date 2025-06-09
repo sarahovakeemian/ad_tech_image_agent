@@ -1,9 +1,14 @@
 import base64
+import json
 import logging
+import numpy as np
 import os
+import pandas as pd
+import requests
 import streamlit as st
 import time
 
+from databricks.sdk import WorkspaceClient
 from io import BytesIO
 from PIL import Image
 from mlflow.deployments import get_deploy_client
@@ -19,15 +24,21 @@ local_mode = True
 # Ensure environment variable is set correctly
 assert os.getenv('SERVING_ENDPOINT'), "SERVING_ENDPOINT must be set in app.yaml."
 
-# def get_user_info():
-#     headers = st.context.headers
-#     return dict(
-#         user_name=headers.get("X-Forwarded-Preferred-Username"),
-#         user_email=headers.get("X-Forwarded-Email"),
-#         user_id=headers.get("X-Forwarded-User"),
-#     )
+w = WorkspaceClient()
 
-# user_info = get_user_info()
+def create_tf_serving_json(data):
+    return {'inputs': {name: data[name].tolist() for name in data.keys()} if isinstance(data, dict) else data.tolist()}
+
+def score_model(dataset):
+    url = f"https://{os.environ.get('DATABRICKS_HOST')}/serving-endpoints/{os.environ.get('SERVING_ENDPOINT')}/invocations"
+    headers = {'Authorization': f'Bearer {os.environ.get("SP_TOKEN")}', 'Content-Type': 'application/json'}
+    ds_dict = {'dataframe_split': dataset.to_dict(orient='split')} if isinstance(dataset, pd.DataFrame) else create_tf_serving_json(dataset)
+    data_json = json.dumps(ds_dict, allow_nan=True)
+    response = requests.request(method='POST', headers=headers, url=url, data=data_json)
+    if response.status_code != 200:
+        raise Exception(f'Request failed with status {response.status_code}, {response.text}')
+    return response.json()
+
 
 # --- NEW: Add a session state flag for button click SH added---
 if "generate_clicked" not in st.session_state:
@@ -147,8 +158,6 @@ st.button("Generate Image", on_click=on_generate_click) #SH added---
 if st.session_state.generate_clicked and st.session_state.processing:
     # Immediately reset flag to prevent reruns
     st.session_state.generate_clicked = False
-    now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    st.write("main knowledge block:", now)
 
     if segment_name == "No Segment (custom prompt)":
         prompt = custom_prompt.strip()
@@ -161,30 +170,28 @@ if st.session_state.generate_clicked and st.session_state.processing:
         use_endpoint = not local_mode  # Follow local_mode for predefined segments
 
     with st.spinner("Generating image..."):
-        now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        st.write("spinner:", now)
         try:
             if not use_endpoint:
                 time.sleep(2) # Simulate delay
                 original_image = Image.open(local_pet_images[segment_name])
                 generated_image = Image.open(local_ad_images[segment_name])
             else:
-                # Initialize the Databricks Client
-                client = get_deploy_client("databricks")
                 now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
                 st.write("making agent call:", now)
-                response = client.predict(
-                    endpoint=os.getenv("SERVING_ENDPOINT"),
-                    inputs={
-                        "dataframe_split": {
-                            "columns": ["model_input"],
-                            "data": [[prompt]]
-                        },
-                        "params": {'openai_toggle': True}
-                    }
-                )
 
-                original_image = Image.open(BytesIO(base64.b64decode(response['predictions'][1])))
+                model_input = {
+                    "model_input": [prompt],
+                    "params": [{"openai_toggle": True}]
+                }
+                model_input_df = pd.DataFrame(model_input)
+                response = score_model(model_input_df)
+
+                # original_image = Image.open(BytesIO(base64.b64decode(response['predictions'][1])))
+                original_image_path = response['predictions'][1]
+                download_response = w.files.download(original_image_path)
+                file_data = download_response.contents.read()
+                original_image = Image.open(BytesIO(file_data))
+
                 generated_image = Image.open(BytesIO(base64.b64decode(response['predictions'][2])))
 
             st.markdown("### Generated Ad and Source Image")
