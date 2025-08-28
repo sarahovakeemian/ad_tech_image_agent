@@ -1,32 +1,32 @@
 embedding_model:
-  catalog: media_advertising
-  schema: ad_tech_image_agent
+  catalog: jack_sandom
+  schema: feip
   model_name: clip
 embedding_endpoint_name: clip
 image_source:
-  catalog: media_advertising
-  schema: ad_tech_image_agent
+  catalog: ml_shovakeemian
+  schema: feip
   volume: pet_images_kaggle
 image_table:
-  catalog: media_advertising
-  schema: ad_tech_image_agent
+  catalog: jack_sandom
+  schema: feip
   table: pet_images
 vs_index:
-  catalog: media_advertising
-  schema: ad_tech_image_agent
-  delta_sync_table: media_advertising.ad_tech_image_agent.pet_images_embeddings
+  catalog: ml_shovakeemian
+  schema: feip
+  delta_sync_table: ml_shovakeemian.feip.pet_images_embeddings
   index_name: pet_images_vs
-  vs_endpoint: dais_demo_vs_endpoint
+  vs_endpoint: one-env-shared-endpoint-15
 brand_source:
-  catalog: media_advertising
-  schema: ad_tech_image_agent
+  catalog: ml_shovakeemian
+  schema: feip
   volume: petfood_brand_creatives
 brand_table:
-  catalog: media_advertising
-  schema: ad_tech_image_agent
+  catalog: jack_sandom
+  schema: feip
   table: petfood_creatives
 image_gen_model_path:
-  catalog: media_advertising
-  schema: ad_tech_image_agent
+  catalog: jack_sandom
+  schema: feip
   model_name: pet_ad_image_gen
 agent_endpoint_name: pet_ad_image_gen
