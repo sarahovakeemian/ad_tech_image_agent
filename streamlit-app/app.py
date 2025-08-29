@@ -248,7 +248,7 @@ with page_tabs[0]:
             use_endpoint = True  # Force endpoint for custom prompt
         else:
             prompt = vector_query
-            use_endpoint = not local_mode  # Follow local_mode for predefined segments
+            use_endpoint = False #not local_mode  # Follow local_mode for predefined segments
 
         with st.spinner("Generating image..."):
             try:
