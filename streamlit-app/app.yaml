@@ -9,5 +9,3 @@ env:
     value: "false"
   - name: "SERVING_ENDPOINT"
     valueFrom: "serving_endpoint"
-  - name: "SP_TOKEN"
-    valueFrom: "sp_token"

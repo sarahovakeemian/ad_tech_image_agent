@@ -32,28 +32,6 @@ w = WorkspaceClient()
 def create_tf_serving_json(data):
     return {'inputs': {name: data[name].tolist() for name in data.keys()} if isinstance(data, dict) else data.tolist()}
 
-def score_model(prompt, params=None):
-    url = f"https://{os.environ.get('DATABRICKS_HOST')}/serving-endpoints/{os.environ.get('SERVING_ENDPOINT')}/invocations"
-    headers = {
-        "Authorization": f'Bearer {os.environ.get("SP_TOKEN")}', 
-        "Content-Type": "application/json"
-    }
-
-    dataset = pd.DataFrame({"model_input": [prompt]})
-
-    payload = {
-        "dataframe_split": {
-            "columns": list(dataset.columns),
-            "data": dataset.values.tolist()
-        }
-    }
-    if params:
-        payload["params"] = params
-    
-    resp = requests.post(url, headers=headers, json=payload)
-    resp.raise_for_status()
-    return resp.json()
-
 
 # --- Session state flags ---
 if "generate_clicked" not in st.session_state:
@@ -282,15 +260,27 @@ with page_tabs[0]:
                     # now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
                     # st.write("making agent call:", now)
 
-                    response = score_model(prompt, params={"replicate_toggle": replicate_toggle})
+                    client = get_deploy_client("databricks")
+                    response = client.predict(
+                        endpoint=os.getenv("SERVING_ENDPOINT"),
+                        inputs={
+                            "dataframe_split": {
+                                "columns": ["model_input"],
+                                "data": [[prompt]]
+                            },
+                            "params": {"replicate_toggle": replicate_toggle}
+                        }
+                    )
 
-                    # original_image = Image.open(BytesIO(base64.b64decode(response['predictions'][1])))
                     original_image_path = response['predictions'][1]
                     download_response = w.files.download(original_image_path)
                     file_data = download_response.contents.read()
                     original_image = Image.open(BytesIO(file_data))
 
-                    generated_image = Image.open(BytesIO(base64.b64decode(response['predictions'][2])))
+                    if replicate_toggle:
+                        generated_image = Image.open(BytesIO(base64.b64decode(response['predictions'][2])))
+                    else:
+                        generated_image = original_image # Just re-use vector search image
 
                 st.markdown("""
                 <div style='background: #fff7f0; border-radius: 14px; padding: 0.7em 1em; margin-bottom: 0.5em; box-shadow: 0 2px 12px #ff6f6133;'>
