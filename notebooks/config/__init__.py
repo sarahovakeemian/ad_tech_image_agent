@@ -227,4 +227,4 @@ class DeployConfig(BaseConfig):
     brand_table: UCTable
     vs_index: VSIndex
     image_gen_model_path: UCModel    
-                
+    image_gen_output: UCVolume            

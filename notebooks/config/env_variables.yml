@@ -30,3 +30,7 @@ image_gen_model_path:
   schema: ad_image_generation
   model_name: pet_ad_image_gen
 agent_endpoint_name: pet_ad_image_gen
+image_gen_output:
+  catalog: media_advertising
+  schema: ad_image_generation
+  volume: pet_ad_image_gen

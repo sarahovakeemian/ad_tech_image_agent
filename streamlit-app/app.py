@@ -1,10 +1,11 @@
 import base64
 import json
 import logging
+import mlflow
 import numpy as np
 import os
 import pandas as pd
-import requests
+import random
 import streamlit as st
 import time
 
@@ -12,6 +13,7 @@ from databricks.sdk import WorkspaceClient
 from io import BytesIO
 from PIL import Image
 from mlflow.deployments import get_deploy_client
+from segments import segments, local_pet_images, local_ad_images
 
 
 # Set up logging
@@ -25,12 +27,93 @@ local_mode = False
 replicate_toggle = True
 
 # Ensure environment variable is set correctly
-assert os.getenv('SERVING_ENDPOINT'), "SERVING_ENDPOINT must be set in app.yaml."
+assert os.getenv('AGENT_ENDPOINT'), "AGENT_ENDPOINT must be set in app.yaml."
 
-w = WorkspaceClient()
+AGENT_ENDPOINT = os.getenv("AGENT_ENDPOINT", "")
+client = get_deploy_client("databricks")
 
-def create_tf_serving_json(data):
-    return {'inputs': {name: data[name].tolist() for name in data.keys()} if isinstance(data, dict) else data.tolist()}
+
+# --- Helpers to get output text and images from ResponseAgent --- #
+def call_agent(messages):
+    """Call the agent (Responses schema only) and return the raw response dict."""
+    payload_msgs = [
+        {"role": m["role"], "content": m["content"]}
+        for m in messages
+        if m.get("content") and str(m["content"]).strip()
+    ]
+    resp = client.predict(endpoint=AGENT_ENDPOINT, inputs={"input": payload_msgs})
+    if not isinstance(resp, dict):
+        raise RuntimeError("Agent returned a non-dict response.")
+    return resp
+
+def extract_output_texts(resp: dict) -> list[str]:
+    """Collect assistant text from Responses-style outputs (message/output_text)."""
+    items = resp.get("output", []) or []
+    texts: list[str] = []
+    for it in items:
+        t = it.get("type")
+        if t == "output_text":
+            txt = it.get("text")
+            if txt:
+                texts.append(txt)
+        elif t == "message":
+            for part in (it.get("content") or []):
+                if isinstance(part, dict) and part.get("type") in ("output_text", "text"):
+                    txt = part.get("text")
+                    if txt:
+                        texts.append(txt)
+    return texts
+
+@st.cache_resource
+def get_ws():
+    return WorkspaceClient()
+
+@st.cache_data(show_spinner=False)
+def load_uc_image_bytes(path: str, max_h: int | None = None) -> bytes:
+    raw = get_ws().files.download(path).contents.read()
+    img = Image.open(BytesIO(raw)).convert("RGBA")
+    if max_h and img.height > max_h:
+        ratio = max_h / float(img.height)
+        img = img.resize((int(img.width * ratio), max_h), Image.LANCZOS)
+    buf = BytesIO()
+    img.save(buf, "PNG")
+    return buf.getvalue()
+
+def extract_pointer(resp: dict):
+    co = resp.get("custom_outputs") or {}
+    ptr = co.get("last_image")
+    if isinstance(ptr, dict) and ptr.get("type") in ("final", "seed"):
+        return {
+            "type": ptr["type"],
+            "uc_path": ptr.get("uc_path"),
+            "seed_path": ptr.get("seed_path"),
+        }
+    # Fallback: parse last tool output if needed
+    items = resp.get("output", []) or []
+    for it in reversed(items):
+        if it.get("type") == "function_call_output":
+            try:
+                payload = json.loads(it.get("output") or "{}")
+            except Exception:
+                payload = {}
+            if payload.get("generated"):
+                return {"type": "final", "uc_path": (payload.get("result") or {}).get("uc_path"), "seed_path": None}
+            return {"type": "seed", "uc_path": None, "seed_path": payload.get("retrieved_uc_path")}
+    return None
+
+def pointer_to_image(ptr: dict | None):
+    if not ptr:
+        return None, None
+    try:
+        if ptr.get("type") == "final" and ptr.get("uc_path"):
+            return load_uc_image_bytes(ptr["uc_path"]), "✨ AI-generated ad creative"
+        if ptr.get("type") == "seed" and ptr.get("seed_path"):
+            sp = ptr.get("seed_path") or ptr.get("uc_path")
+            if sp:
+                return load_uc_image_bytes(sp, max_h=512), "🔍 Retrieved from vector search"
+    except Exception as e:
+        st.warning(f"Couldn't load image ({e}).")
+    return None, None
 
 
 # --- Session state flags ---
@@ -47,8 +130,8 @@ def on_generate_click():
 # --- Page Configuration ---
 st.set_page_config(page_title="Pet Ad Image Gen", page_icon="🐾", layout="wide")
 # Use tabs for cleaner navigation
-# page_tabs = st.tabs(["Image Gen", "Chat Mode"])
-page_tabs = st.tabs(["Image Gen"])
+page_tabs = st.tabs(["Image Gen", "Chat Mode"])
+# page_tabs = st.tabs(["Image Gen"])
 
 # Custom CSS for cleaner, modern tabs (less red, more neutral)
 st.markdown("""
@@ -79,12 +162,12 @@ with page_tabs[0]:
         st.markdown("""
         <div style='text-align: center;'>
             <h2 style='color: #ff6f61;'>🐾 Pet Ad Image Gen</h2>
-            <p style='font-size: 1.1em;'>Create stunning pet ad creatives for your audience segments.<br><br>
+            <p style='font-size: 1.1em;'>Create stunning ad creatives for Bricks™ pet food, personalized to your audience segments.<br><br>
             <b>How to use:</b><br>
             1. Select an audience segment<br>
             2. Click <span style='color:#ff6f61'><b>Generate Image</b></span><br>
             3. View the AI-generated ad and source image side by side<br>
-            <!-- <span style='color:#ff6f61; font-size:1em; display:block; margin-top:1.5em; margin-bottom:1em;'><b>Switch to Chat Mode to interact with an AI Agent.</b></span> -->
+            <span style='color:#ff6f61; font-size:1em; display:block; margin-top:1.5em; margin-bottom:1em;'><b>Switch to <i>Chat Mode</i> to interact with an AI Agent.</b></span>
             </p>
             <hr>
             <small style='color: #888;'>Powered by Databricks</small>
@@ -98,83 +181,6 @@ with page_tabs[0]:
         <span style='font-size: 2em;'>🐕&nbsp;🐈&nbsp;🐇&nbsp;🦜</span>
     </div>
     """, unsafe_allow_html=True)
-
-    # Segment definitions
-    segments = {
-        "Young Professionals": {
-            "vector_query": "Grey cat on a rug",
-            "persona_summary": "A driven urban worker who values independence, modern living, and the quiet companionship of their furry friend."
-        },
-        "Outdoor Enthusiasts": {
-            "vector_query": "Golden retriever in the park",
-            "persona_summary": "An active individual who thrives on adventure, fresh air, and sharing it all with their loyal friend by their side."
-        },
-        "Young Families": {
-            "vector_query": "Guinea pig in it’s cage",
-            "persona_summary": "Creates a nurturing home where their children are learning care and responsibility through their very first pet."
-        },
-        "Eco-Conscious Millenials": {
-            "vector_query": "Bunny rabbits in the grass",
-            "persona_summary": "Lives sustainably and intentionally, choosing a pet as a low-impact companion that aligns with their eco-friendly values."
-        },
-        "Passionate Hobbyists": {
-            "vector_query": "Bright green parrots",
-            "persona_summary": "A retired hobbyist who fills their days with passion projects and lively conversations with their talkative pet."
-        },
-        "Luxury Lifestyle Seekers": {
-            "vector_query": "White poodle",
-            "persona_summary": "Values sophistication and pampering, treating their pet as a stylish companion and status symbol."
-        },
-        "Security-Focused Guardians": {
-            "vector_query": "Tough rottweiler",
-            "persona_summary": "Seeks a protective companion that embodies strength while maintaining family loyalty."
-        },
-        "Vocal Companion Enthusiasts": {
-            "vector_query": "Quaker Parrot",
-            "persona_summary": "Loves interactive pets that provide lively companionship and engaging dialogue."
-        },
-        "Traditional Loyalty Advocates": {
-            "vector_query": "Old Bulldog",
-            "persona_summary": "Cherishes steadfast companionship and the quiet dignity of a time-tested breed."
-        },
-        "Style-Conscious Pet Parents": {
-            "vector_query": "Siamese kittens",
-            "persona_summary": "Adores elegant felines that complement their modern aesthetic while providing playful energy."
-        },
-        "Mystical Nature Admirers": {
-            "vector_query": "Black forest cat",
-            "persona_summary": "Drawn to mysterious feline companions that evoke woodland magic and quiet independence."
-        }
-    }
-
-    # Helpers to map segment to local images
-    local_pet_images = {
-        "Young Professionals": "images/grey_cat.jpg",
-        "Outdoor Enthusiasts": "images/golden_retriever.jpg",
-        "Young Families": "images/guinea_pig.jpg",
-        "Eco-Conscious Millenials": "images/rabbit.jpg",
-        "Passionate Hobbyists": "images/parrot.jpg",
-        "Luxury Lifestyle Seekers":"images/poodle.png",
-        "Security-Focused Guardians":"images/rottweiler.png",
-        "Vocal Companion Enthusiasts":"images/quaker_parrot.png",
-        "Traditional Loyalty Advocates":"images/bulldog.png",
-        "Style-Conscious Pet Parents":"images/siamese_kittens.png",
-        "Mystical Nature Admirers":"images/black_forest_cat.png"
-    }
-    local_ad_images = {
-        "Young Professionals": "images/grey_cat_ad.jpg",
-        "Outdoor Enthusiasts": "images/golden_retriever_ad.jpg",
-        "Young Families": "images/guinea_pig_ad.jpg",
-        "Eco-Conscious Millenials": "images/rabbit_ad.jpg",
-        "Passionate Hobbyists": "images/parrot_ad.jpg",
-        "Luxury Lifestyle Seekers":"images/poodle_ad.png",
-        "Security-Focused Guardians":"images/rottweiler_ad.png",
-        "Vocal Companion Enthusiasts":"images/quaker_parrot_ad.png",
-        "Traditional Loyalty Advocates":"images/bulldog_ad.png",
-        "Style-Conscious Pet Parents":"images/siamese_kittens_ad.png",
-        "Mystical Nature Admirers":"images/black_forest_cat_ad.png"
-    }
-
 
     # --- Segment Selection ---
     segment_options = list(segments.keys())
@@ -245,43 +251,61 @@ with page_tabs[0]:
             if not prompt:
                 st.error("Custom prompt is required when not using a segment.")
                 st.stop()
-            use_endpoint = True  # Force endpoint for custom prompt
+            use_endpoint = True  # Only custom prompt uses the agent
         else:
             prompt = vector_query
-            use_endpoint = False #not local_mode  # Follow local_mode for predefined segments
+            use_endpoint = False # Pre-defined segments never query the endpoint
 
         with st.spinner("Generating image..."):
             try:
                 if not use_endpoint:
+                    # Local demo mode
                     time.sleep(6) # Simulate longer delay for realism
                     original_image = Image.open(local_pet_images[segment_name])
                     generated_image = Image.open(local_ad_images[segment_name])
+                
                 else:
-                    # now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-                    # st.write("making agent call:", now)
-
-                    client = get_deploy_client("databricks")
-                    response = client.predict(
-                        endpoint=os.getenv("SERVING_ENDPOINT"),
+                    # Direct-mode call to the chat agent (one shot; returns seed + optional final)
+                    resp = client.predict(
+                        endpoint=AGENT_ENDPOINT,
                         inputs={
-                            "dataframe_split": {
-                                "columns": ["model_input"],
-                                "data": [[prompt]]
+                            "input": [],  # no chat — direct mode
+                            "custom_inputs": {
+                                "direct": {
+                                    "prompt": prompt,
+                                    "replicate_toggle": bool(replicate_toggle),
+                                }
                             },
-                            "params": {"replicate_toggle": replicate_toggle}
-                        }
+                        },
                     )
 
-                    original_image_path = response['predictions'][1]
-                    download_response = w.files.download(original_image_path)
-                    file_data = download_response.contents.read()
-                    original_image = Image.open(BytesIO(file_data))
+                    # Parse the last tool output to get UC paths
+                    items = resp.get("output", []) or []
+                    tool_items = [it for it in items if it.get("type") == "function_call_output"]
+                    if not tool_items:
+                        raise RuntimeError("Agent returned no tool output (function_call_output).")
 
-                    if replicate_toggle:
-                        generated_image = Image.open(BytesIO(base64.b64decode(response['predictions'][2])))
+                    tool_json_str = tool_items[-1].get("output") or "{}"
+                    ptr = json.loads(tool_json_str)
+
+                    seed_path = ptr.get("retrieved_uc_path")
+                    final_uc  = (ptr.get("result") or {}).get("uc_path") if ptr.get("generated") else None
+
+                    if not seed_path:
+                        raise RuntimeError("Agent did not return a retrieved_uc_path for the seed image.")
+
+                    # Fetch images from UC Volumes
+                    seed_bytes = load_uc_image_bytes(seed_path)
+                    original_image = Image.open(BytesIO(seed_bytes))
+
+                    if final_uc:
+                        final_bytes = load_uc_image_bytes(final_uc)
+                        generated_image = Image.open(BytesIO(final_bytes))
                     else:
-                        generated_image = original_image # Just re-use vector search image
+                        # If replicate off, reuse seed as “generated” placeholder
+                        generated_image = original_image
 
+                # --- Render result cards ---
                 st.markdown("""
                 <div style='background: #fff7f0; border-radius: 14px; padding: 0.7em 1em; margin-bottom: 0.5em; box-shadow: 0 2px 12px #ff6f6133;'>
                     <h3 style='color:#ff6f61; margin-bottom:0.15em; font-size:1.15em;'>🖼️ Generated Ad & Source Image</h3>
@@ -290,6 +314,7 @@ with page_tabs[0]:
 
                 col1, col2 = st.columns([2, 1])
                 max_img_height = 1024
+
                 def show_image(img, caption):
                     buffered = BytesIO()
                     img.save(buffered, format="PNG")
@@ -311,12 +336,126 @@ with page_tabs[0]:
                 st.session_state.processing = False
 
             except Exception as e:
+                st.session_state.processing = False
                 st.error(f"An error occurred: {e}")
 
-# with page_tabs[1]:
-#     st.markdown("""
-#     <div style='text-align:center; margin-top:3em;'>
-#         <h2 style='color:#ff6f61;'>💬 Chat Mode</h2>
-#         <p style='font-size:1.1em; color:#555;'>This is a placeholder for the Chat Mode page.</p>
-#     </div>
-#     """, unsafe_allow_html=True)
+with page_tabs[1]:
+    st.markdown("""
+    <style>
+      .center-wrap { max-width: 820px; margin: 0 auto; text-align: center; }
+      .chat-wrap   { max-width: 820px; margin: 1rem auto 0 auto; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Loading dots custom CSS
+    st.markdown("""
+    <style>
+        :root{
+            --avatar-size: 36px;
+            --dot-size:   8px;
+            --dot-gap:    6px;
+            --nudge-y:   -8px;
+        }
+
+        .typing-bubble{
+            display:flex;
+            align-items:center;
+            height: var(--avatar-size);
+            line-height: 0;
+        }
+        .typing-dots{
+            display:inline-flex;
+            gap: var(--dot-gap);
+            align-items:center;
+            transform: translateY(var(--nudge-y));
+        }
+        .typing-dots span{
+            width: var(--dot-size);
+            height: var(--dot-size);
+            border-radius:50%;
+            background:#c9c9c9;
+            display:inline-block;
+            animation: typingBlink 1.4s infinite both;
+        }
+        .typing-dots span:nth-child(2){ animation-delay:.2s; }
+        .typing-dots span:nth-child(3){ animation-delay:.4s; }
+
+        @keyframes typingBlink { 0%,80%,100% { opacity:0; } 40% { opacity:1; } }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class='center-wrap' style='margin-top:2rem; margin-bottom:2rem;'>
+        <h2 style='color:#ff6f61;margin-bottom:0.25em;'>💬 Chat Mode</h2>
+        <p style='font-size:1.05em; color:#555; margin:0;'>
+            Describe your audience or describe a pet. I’ll fetch a seed image and, on confirmation, generate the final ad.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- Config / endpoint name from env --- #
+    if not AGENT_ENDPOINT:
+        st.markdown("<div class='center-wrap'>", unsafe_allow_html=True)
+        st.error("Set environment variable **AGENT_ENDPOINT** to your agent serving endpoint name (e.g., `pet-ad-agent`).")
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.stop()
+
+    # ---- Avatars ---- #
+    human_avatar = "👤"
+    assistant_avatar = "🐾"
+
+    # ---- Chat history ---- #
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    chat_area = st.container()
+
+    # ---- Display chat history ---- #
+    with chat_area:
+        for m in st.session_state.messages:
+            with st.chat_message(m["role"], avatar=m.get("avatar", "")):
+                if m.get("content"):
+                    st.markdown(m["content"])
+                if img_bytes := m.get("image_bytes"):
+                    st.image(Image.open(BytesIO(img_bytes)), caption=m.get("image_caption", None))
+
+    # ---- Accept user input ---- #
+    prompt = st.chat_input("How can I help with your ad campaign?")
+    if prompt:
+        # Add the user message to history and render it now (history renderer above stays unchanged)
+        st.session_state.messages.append({"role": "user", "content": prompt, "avatar": human_avatar})
+        with chat_area:
+            with st.chat_message("user", avatar=human_avatar):
+                st.markdown(prompt)
+
+            # Show loading dots
+            with st.chat_message("assistant", avatar=assistant_avatar):
+                st.markdown(
+                    "<div class='typing-bubble'><div class='typing-dots'><span></span><span></span><span></span></div></div>",
+                    unsafe_allow_html=True
+                )
+
+        # Call the agent (no inline assistant bubble to avoid duplication)
+        img_bytes, img_caption = None, None
+        try:
+            resp = call_agent(st.session_state.messages)
+            texts = extract_output_texts(resp)
+            assistant_response = "\n\n".join(texts) if texts else "(working on your request)"
+            ptr = extract_pointer(resp)
+            # (Optional) fetch image bytes now so they persist with the same assistant turn
+            img_bytes, img_caption = pointer_to_image(ptr)
+        except Exception as e:
+            assistant_response = f"Sorry—there was an error talking to the agent: {e}"
+            img_bytes, img_caption = None, None
+
+        # Persist assistant message (text + optional image) to history
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": assistant_response,
+            "avatar": assistant_avatar,
+            "image_bytes": img_bytes if img_bytes else None,
+            "image_caption": img_caption if img_bytes else None,
+        })
+
+        # Rerun so the assistant turn renders once via the existing history loop
+        st.rerun()
