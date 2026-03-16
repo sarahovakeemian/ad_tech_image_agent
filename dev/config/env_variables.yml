@@ -1,0 +1,40 @@
+embedding_model:
+  catalog: ml_shovakeemian
+  schema: feip
+  model_name: clip
+embedding_endpoint_name: shovakeemian_clip
+image_source:
+  catalog: ml_shovakeemian
+  schema: feip
+  volume: pet_images_kaggle
+image_table:
+  catalog: ml_shovakeemian
+  schema: feip
+  table: pet_images
+user_table:
+  catalog: ml_shovakeemian
+  schema: feip
+  table: user_pet_features
+user_online_table:
+  catalog: ml_shovakeemian
+  schema: feip
+  table: user_pet_features_online
+vs_index:
+  catalog: ml_shovakeemian
+  schema: feip
+  delta_sync_table: ml_shovakeemian.feip.pet_images_embeddings
+  index_name: pet_images_vs
+  vs_endpoint: one-env-shared-endpoint-15
+brand_source:
+  catalog: ml_shovakeemian
+  schema: feip
+  volume: petfood_brand_creatives
+brand_table:
+  catalog: ml_shovakeemian
+  schema: feip
+  table: petfood_creatives 
+image_gen_model_path:
+  catalog: ml_shovakeemian
+  schema: feip
+  model_name: pet_ad_image_gen
+agent_endpoint_name: pet_ad_image_gen
